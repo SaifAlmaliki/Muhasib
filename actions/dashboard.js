@@ -3,8 +3,8 @@
 import aj from "@/lib/arcjet";
 import { db } from "@/lib/prisma";
 import { request } from "@arcjet/next";
-import { auth } from "@clerk/nextjs/server";
 import { revalidatePath } from "next/cache";
+import { requireUserId } from "@/lib/auth";
 
 const serializeTransaction = (obj) => {
   const serialized = { ...obj };
@@ -18,20 +18,11 @@ const serializeTransaction = (obj) => {
 };
 
 export async function getUserAccounts() {
-  const { userId } = await auth();
-  if (!userId) throw new Error("Unauthorized");
-
-  const user = await db.user.findUnique({
-    where: { clerkUserId: userId },
-  });
-
-  if (!user) {
-    throw new Error("User not found");
-  }
+  const userId = await requireUserId();
 
   try {
     const accounts = await db.account.findMany({
-      where: { userId: user.id },
+      where: { userId },
       orderBy: { createdAt: "desc" },
       include: {
         _count: {
@@ -42,10 +33,7 @@ export async function getUserAccounts() {
       },
     });
 
-    // Serialize accounts before sending to client
-    const serializedAccounts = accounts.map(serializeTransaction);
-
-    return serializedAccounts;
+    return accounts.map(serializeTransaction);
   } catch (error) {
     console.error(error.message);
   }
@@ -53,16 +41,13 @@ export async function getUserAccounts() {
 
 export async function createAccount(data) {
   try {
-    const { userId } = await auth();
-    if (!userId) throw new Error("Unauthorized");
+    const userId = await requireUserId();
 
-    // Get request data for ArcJet
     const req = await request();
 
-    // Check rate limit
     const decision = await aj.protect(req, {
       userId,
-      requested: 1, // Specify how many tokens to consume
+      requested: 1,
     });
 
     if (decision.isDenied()) {
@@ -75,56 +60,39 @@ export async function createAccount(data) {
             resetInSeconds: reset,
           },
         });
-
         throw new Error("Too many requests. Please try again later.");
       }
-
       throw new Error("Request blocked");
     }
 
-    const user = await db.user.findUnique({
-      where: { clerkUserId: userId },
-    });
-
-    if (!user) {
-      throw new Error("User not found");
-    }
-
-    // Convert balance to float before saving
     const balanceFloat = parseFloat(data.balance);
     if (isNaN(balanceFloat)) {
       throw new Error("Invalid balance amount");
     }
 
-    // Check if this is the user's first account
     const existingAccounts = await db.account.findMany({
-      where: { userId: user.id },
+      where: { userId },
     });
 
-    // If it's the first account, make it default regardless of user input
-    // If not, use the user's preference
     const shouldBeDefault =
       existingAccounts.length === 0 ? true : data.isDefault;
 
-    // If this account should be default, unset other default accounts
     if (shouldBeDefault) {
       await db.account.updateMany({
-        where: { userId: user.id, isDefault: true },
+        where: { userId, isDefault: true },
         data: { isDefault: false },
       });
     }
 
-    // Create new account
     const account = await db.account.create({
       data: {
         ...data,
         balance: balanceFloat,
-        userId: user.id,
-        isDefault: shouldBeDefault, // Override the isDefault based on our logic
+        userId,
+        isDefault: shouldBeDefault,
       },
     });
 
-    // Serialize the account before returning
     const serializedAccount = serializeTransaction(account);
 
     revalidatePath("/dashboard");
@@ -135,20 +103,10 @@ export async function createAccount(data) {
 }
 
 export async function getDashboardData() {
-  const { userId } = await auth();
-  if (!userId) throw new Error("Unauthorized");
+  const userId = await requireUserId();
 
-  const user = await db.user.findUnique({
-    where: { clerkUserId: userId },
-  });
-
-  if (!user) {
-    throw new Error("User not found");
-  }
-
-  // Get all user transactions
   const transactions = await db.transaction.findMany({
-    where: { userId: user.id },
+    where: { userId },
     orderBy: { date: "desc" },
   });
 
