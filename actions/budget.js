@@ -1,29 +1,17 @@
 "use server";
 
 import { db } from "@/lib/prisma";
-import { auth } from "@clerk/nextjs/server";
 import { revalidatePath } from "next/cache";
+import { requireUserId } from "@/lib/auth";
 
 export async function getCurrentBudget(accountId) {
   try {
-    const { userId } = await auth();
-    if (!userId) throw new Error("Unauthorized");
-
-    const user = await db.user.findUnique({
-      where: { clerkUserId: userId },
-    });
-
-    if (!user) {
-      throw new Error("User not found");
-    }
+    const userId = await requireUserId();
 
     const budget = await db.budget.findFirst({
-      where: {
-        userId: user.id,
-      },
+      where: { userId },
     });
 
-    // Get current month's expenses
     const currentDate = new Date();
     const startOfMonth = new Date(
       currentDate.getFullYear(),
@@ -38,7 +26,7 @@ export async function getCurrentBudget(accountId) {
 
     const expenses = await db.transaction.aggregate({
       where: {
-        userId: user.id,
+        userId,
         type: "EXPENSE",
         date: {
           gte: startOfMonth,
@@ -65,27 +53,12 @@ export async function getCurrentBudget(accountId) {
 
 export async function updateBudget(amount) {
   try {
-    const { userId } = await auth();
-    if (!userId) throw new Error("Unauthorized");
+    const userId = await requireUserId();
 
-    const user = await db.user.findUnique({
-      where: { clerkUserId: userId },
-    });
-
-    if (!user) throw new Error("User not found");
-
-    // Update or create budget
     const budget = await db.budget.upsert({
-      where: {
-        userId: user.id,
-      },
-      update: {
-        amount,
-      },
-      create: {
-        userId: user.id,
-        amount,
-      },
+      where: { userId },
+      update: { amount },
+      create: { userId, amount },
     });
 
     revalidatePath("/dashboard");
