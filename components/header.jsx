@@ -1,13 +1,13 @@
-import React from "react";
-import { Button } from "./ui/button";
-import { PenBox, LayoutDashboard } from "lucide-react";
 import Link from "next/link";
-import { SignedIn, SignedOut, SignInButton, UserButton } from "@clerk/nextjs";
-import { checkUser } from "@/lib/checkUser";
 import Image from "next/image";
+import { PenBox, LayoutDashboard, LogOut } from "lucide-react";
+
+import { Button } from "@/components/ui/button";
+import { getCurrentUser } from "@/lib/auth";
+import { signOut } from "@/actions/auth";
 
 const Header = async () => {
-  await checkUser();
+  const user = await getCurrentUser();
 
   return (
     <header className="fixed top-0 w-full bg-white/80 backdrop-blur-md z-50 border-b">
@@ -22,50 +22,64 @@ const Header = async () => {
           />
         </Link>
 
-        {/* Navigation Links - Different for signed in/out users */}
         <div className="hidden md:flex items-center space-x-8">
-          <SignedOut>
-            <a href="#features" className="text-gray-600 hover:text-blue-600">
-              Features
-            </a>
-            <a href="#testimonials" className="text-gray-600 hover:text-blue-600">
-              Testimonials
-            </a>
-          </SignedOut>
+          {!user && (
+            <>
+              <a href="#features" className="text-gray-600 hover:text-blue-600">
+                Features
+              </a>
+              <a
+                href="#testimonials"
+                className="text-gray-600 hover:text-blue-600"
+              >
+                Testimonials
+              </a>
+            </>
+          )}
         </div>
 
-        {/* Action Buttons */}
         <div className="flex items-center space-x-4">
-          <SignedIn>
-            <Link href="/dashboard" className="text-gray-600 hover:text-blue-600 flex items-center gap-2">
-              <Button variant="outline">
-                <LayoutDashboard size={18} />
-                <span className="hidden md:inline">Dashboard</span>
-              </Button>
-            </Link>
-            <Link href="/transaction/create" className="text-gray-600 hover:text-blue-600 flex items-center gap-2">
-              <Button className="flex items-center gap-2">
-                <PenBox size={18} />
-                <span className="hidden md:inline">Add Transaction</span>
-              </Button>
-            </Link>
-          </SignedIn>
+          {user ? (
+            <>
+              <Link
+                href="/dashboard"
+                className="text-gray-600 hover:text-blue-600 flex items-center gap-2"
+              >
+                <Button variant="outline">
+                  <LayoutDashboard size={18} />
+                  <span className="hidden md:inline">Dashboard</span>
+                </Button>
+              </Link>
 
-          <SignedOut>
-            <SignInButton forceRedirectUrl="/dashboard">
+              <Link
+                href="/transaction/create"
+                className="text-gray-600 hover:text-blue-600 flex items-center gap-2"
+              >
+                <Button className="flex items-center gap-2">
+                  <PenBox size={18} />
+                  <span className="hidden md:inline">Add Transaction</span>
+                </Button>
+              </Link>
+
+              <span
+                className="hidden md:inline text-sm text-gray-600"
+                title={user.email}
+              >
+                {user.email}
+              </span>
+
+              <form action={signOut}>
+                <Button type="submit" variant="outline">
+                  <LogOut size={18} />
+                  <span className="hidden md:inline">Sign out</span>
+                </Button>
+              </form>
+            </>
+          ) : (
+            <Link href="/sign-in">
               <Button variant="outline">Login</Button>
-            </SignInButton>
-          </SignedOut>
-
-          {/* User Profile */}
-          <SignedIn>
-            <UserButton appearance={{
-                elements: {
-                  avatarBox: "w-10 h-10",
-                },
-              }}
-            />
-          </SignedIn>
+            </Link>
+          )}
         </div>
       </nav>
     </header>
