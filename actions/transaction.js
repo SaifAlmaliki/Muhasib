@@ -1,11 +1,11 @@
 "use server";
 
-import { auth } from "@clerk/nextjs/server";
 import { db } from "@/lib/prisma";
 import { revalidatePath } from "next/cache";
 import { GoogleGenerativeAI } from "@google/generative-ai";
 import aj from "@/lib/arcjet";
 import { request } from "@arcjet/next";
+import { requireUserId } from "@/lib/auth";
 
 const genAI = new GoogleGenerativeAI(process.env.GEMINI_API_KEY);
 
@@ -14,19 +14,15 @@ const serializeAmount = (obj) => ({
   amount: obj.amount.toNumber(),
 });
 
-// Create Transaction
 export async function createTransaction(data) {
   try {
-    const { userId } = await auth();
-    if (!userId) throw new Error("Unauthorized");
+    const userId = await requireUserId();
 
-    // Get request data for ArcJet
     const req = await request();
 
-    // Check rate limit
     const decision = await aj.protect(req, {
       userId,
-      requested: 1, // Specify how many tokens to consume
+      requested: 1,
     });
 
     if (decision.isDenied()) {
@@ -39,25 +35,15 @@ export async function createTransaction(data) {
             resetInSeconds: reset,
           },
         });
-
         throw new Error("Too many requests. Please try again later.");
       }
-
       throw new Error("Request blocked");
-    }
-
-    const user = await db.user.findUnique({
-      where: { clerkUserId: userId },
-    });
-
-    if (!user) {
-      throw new Error("User not found");
     }
 
     const account = await db.account.findUnique({
       where: {
         id: data.accountId,
-        userId: user.id,
+        userId,
       },
     });
 
@@ -65,16 +51,14 @@ export async function createTransaction(data) {
       throw new Error("Account not found");
     }
 
-    // Calculate new balance
     const balanceChange = data.type === "EXPENSE" ? -data.amount : data.amount;
     const newBalance = account.balance.toNumber() + balanceChange;
 
-    // Create transaction and update account balance
     const transaction = await db.$transaction(async (tx) => {
       const newTransaction = await tx.transaction.create({
         data: {
           ...data,
-          userId: user.id,
+          userId,
           nextRecurringDate:
             data.isRecurring && data.recurringInterval
               ? calculateNextRecurringDate(data.date, data.recurringInterval)
@@ -100,20 +84,10 @@ export async function createTransaction(data) {
 }
 
 export async function getTransaction(id) {
-  const { userId } = await auth();
-  if (!userId) throw new Error("Unauthorized");
-
-  const user = await db.user.findUnique({
-    where: { clerkUserId: userId },
-  });
-
-  if (!user) throw new Error("User not found");
+  const userId = await requireUserId();
 
   const transaction = await db.transaction.findUnique({
-    where: {
-      id,
-      userId: user.id,
-    },
+    where: { id, userId },
   });
 
   if (!transaction) throw new Error("Transaction not found");
@@ -123,29 +97,15 @@ export async function getTransaction(id) {
 
 export async function updateTransaction(id, data) {
   try {
-    const { userId } = await auth();
-    if (!userId) throw new Error("Unauthorized");
+    const userId = await requireUserId();
 
-    const user = await db.user.findUnique({
-      where: { clerkUserId: userId },
-    });
-
-    if (!user) throw new Error("User not found");
-
-    // Get original transaction to calculate balance change
     const originalTransaction = await db.transaction.findUnique({
-      where: {
-        id,
-        userId: user.id,
-      },
-      include: {
-        account: true,
-      },
+      where: { id, userId },
+      include: { account: true },
     });
 
     if (!originalTransaction) throw new Error("Transaction not found");
 
-    // Calculate balance changes
     const oldBalanceChange =
       originalTransaction.type === "EXPENSE"
         ? -originalTransaction.amount.toNumber()
@@ -156,13 +116,9 @@ export async function updateTransaction(id, data) {
 
     const netBalanceChange = newBalanceChange - oldBalanceChange;
 
-    // Update transaction and account balance in a transaction
     const transaction = await db.$transaction(async (tx) => {
       const updated = await tx.transaction.update({
-        where: {
-          id,
-          userId: user.id,
-        },
+        where: { id, userId },
         data: {
           ...data,
           nextRecurringDate:
@@ -172,7 +128,6 @@ export async function updateTransaction(id, data) {
         },
       });
 
-      // Update account balance
       await tx.account.update({
         where: { id: data.accountId },
         data: {
@@ -194,23 +149,13 @@ export async function updateTransaction(id, data) {
   }
 }
 
-// Get User Transactions
 export async function getUserTransactions(query = {}) {
   try {
-    const { userId } = await auth();
-    if (!userId) throw new Error("Unauthorized");
-
-    const user = await db.user.findUnique({
-      where: { clerkUserId: userId },
-    });
-
-    if (!user) {
-      throw new Error("User not found");
-    }
+    const userId = await requireUserId();
 
     const transactions = await db.transaction.findMany({
       where: {
-        userId: user.id,
+        userId,
         ...query,
       },
       include: {
@@ -227,14 +172,11 @@ export async function getUserTransactions(query = {}) {
   }
 }
 
-// Scan Receipt
 export async function scanReceipt(file) {
   try {
     const model = genAI.getGenerativeModel({ model: "gemini-1.5-flash" });
 
-    // Convert File to ArrayBuffer
     const arrayBuffer = await file.arrayBuffer();
-    // Convert ArrayBuffer to Base64
     const base64String = Buffer.from(arrayBuffer).toString("base64");
 
     const prompt = `
@@ -244,7 +186,7 @@ export async function scanReceipt(file) {
       - Description or items purchased (brief summary)
       - Merchant/store name
       - Suggested category (one of: housing,transportation,groceries,utilities,entertainment,food,shopping,healthcare,education,personal,travel,insurance,gifts,bills,other-expense )
-      
+
       Only respond with valid JSON in this exact format:
       {
         "amount": number,
@@ -290,7 +232,6 @@ export async function scanReceipt(file) {
   }
 }
 
-// Helper function to calculate next recurring date
 function calculateNextRecurringDate(startDate, interval) {
   const date = new Date(startDate);
 
