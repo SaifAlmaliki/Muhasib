@@ -9,12 +9,9 @@
 DATABASE_URL=
 DIRECT_URL=
 
-NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY=
-CLERK_SECRET_KEY=
-NEXT_PUBLIC_CLERK_SIGN_IN_URL=/sign-in
-NEXT_PUBLIC_CLERK_SIGN_UP_URL=/sign-up
-NEXT_PUBLIC_CLERK_AFTER_SIGN_IN_URL=/onboarding
-NEXT_PUBLIC_CLERK_AFTER_SIGN_UP_URL=/onboarding
+# Generate with:
+#   node -e "console.log(require('crypto').randomBytes(32).toString('base64'))"
+JWT_SECRET=
 
 GEMINI_API_KEY=
 
