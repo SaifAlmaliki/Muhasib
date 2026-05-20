@@ -1,0 +1,26 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(git add *)",
+      "Bash(git commit -m ' *)",
+      "Bash(npm install *)",
+      "Bash(npm login *)",
+      "Bash(npm config *)",
+      "Bash(npm view *)",
+      "Bash(aws codeartifact get-authorization-token *)",
+      "Bash(wait *)",
+      "Bash(npm cache *)",
+      "Bash(npm ls *)",
+      "Bash(git commit *)",
+      "Bash(npm run *)",
+      "Bash(xargs grep *)",
+      "Bash(git rm *)",
+      "Bash(npx prisma *)",
+      "Bash(ping -n 2 ep-divine-river-aldbrlqj.c-3.eu-central-1.aws.neon.tech)",
+      "Bash(curl -sS -o /dev/null -w \"%{http_code}\\\\n\" --max-time 10 https://console.neon.tech)",
+      "Bash(node *)",
+      "Bash(npm uninstall *)",
+      "Bash(git push *)"
+    ]
+  }
+}

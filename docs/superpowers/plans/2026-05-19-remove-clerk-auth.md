@@ -63,9 +63,9 @@ const SESSION_MAX_AGE = 60 * 60 * 24 * SESSION_DAYS;
 
 function getSecret() {
   const secret = process.env.JWT_SECRET;
-  if (!secret || secret.length < 32) {
+  if (!secret || secret.length < 16) {
     throw new Error(
-      "JWT_SECRET must be set and at least 32 characters. Generate with: node -e \"console.log(require('crypto').randomBytes(32).toString('base64'))\""
+      "JWT_SECRET must be set and at least 16 characters. Generate with: node -e \"console.log(require('crypto').randomBytes(32).toString('base64'))\""
     );
   }
   return new TextEncoder().encode(secret);
@@ -1520,7 +1520,7 @@ model User {
 
 - [ ] **Step 2: Verify `JWT_SECRET` exists in `.env`**
 
-Open `.env` and confirm `JWT_SECRET=...` is present (≥32 chars). If missing, generate one:
+Open `.env` and confirm `JWT_SECRET=...` is present (≥16 chars). If missing, generate one:
 
 ```bash
 node -e "console.log(require('crypto').randomBytes(32).toString('base64'))"
@@ -1609,7 +1609,7 @@ In `CLAUDE.md`:
 ## Required environment
 
 Copy from README.md into `.env`:
-`DATABASE_URL`, `DIRECT_URL` (Postgres + Prisma direct URL — Prisma uses `directUrl` for migrations), `JWT_SECRET` (≥32 chars; generate with `node -e "console.log(require('crypto').randomBytes(32).toString('base64'))"`), `GEMINI_API_KEY`, `RESEND_API_KEY`, `ARCJET_KEY`.
+`DATABASE_URL`, `DIRECT_URL` (Postgres + Prisma direct URL — Prisma uses `directUrl` for migrations), `JWT_SECRET` (≥16 chars for dev; generate with `node -e "console.log(require('crypto').randomBytes(32).toString('base64'))"`), `GEMINI_API_KEY`, `RESEND_API_KEY`, `ARCJET_KEY`.
 ```
 
 2. Replace the **Middleware chain** paragraph (under Architecture) with:
